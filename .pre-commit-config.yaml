@@ -1,0 +1,22 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (via local venv)
+        entry: uv run ruff check --fix
+        language: system
+        files: \.py$
+      
+      - id: mypy
+        name: mypy (via local venv)
+        entry: uv run mypy
+        language: system
+        files: \.py$
+        exclude: ^tests/
+      
+      - id: pylint
+        name: pylint (via local venv)
+        entry: uv run pylint
+        language: system
+        files: \.py$
+        exclude: ^tests/
