@@ -4,7 +4,7 @@ Test configuration
 
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from .mocks import app
+from .mocks.site import app
 
 
 @pytest_asyncio.fixture

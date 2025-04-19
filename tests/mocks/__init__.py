@@ -1,5 +1,5 @@
 """
-Export relevant variables and methods
+Export required members
 """
 
 from .site import app
