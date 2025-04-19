@@ -6,3 +6,4 @@
 **/logs
 **/.coverage
 **/.pytest_cache
+**/results.json

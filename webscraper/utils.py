@@ -1,5 +1,5 @@
 """
-Settings and setup
+helper functions and enums
 """
 
 from functools import lru_cache
@@ -7,19 +7,31 @@ import logging
 import os
 import sys
 
-from pydantic_settings import BaseSettings
-
-
-class Settings(BaseSettings):
-    """App settings"""
-
-    log_level: str = "INFO"
+import httpx
+from .settings import get_http_client_settings, get_core_settings
 
 
 @lru_cache
-def get_settings():
-    """cached app settings"""
-    return Settings()
+def get_httpx_client():
+    """
+    return consistent and global httpx client
+    to prevent too many connections
+    """
+    settings = get_http_client_settings()
+    return httpx.AsyncClient(
+        follow_redirects=True,
+        transport=httpx.AsyncHTTPTransport(
+            retries=settings.retries,
+            limits=httpx.Limits(
+                max_connections=settings.max_connections,
+                max_keepalive_connections=settings.max_keepalive_connections,
+            ),
+        ),
+        timeout=httpx.Timeout(
+            pool=settings.pool_timeout,
+            timeout=settings.timeout,
+        ),
+    )
 
 
 def setup_logging():
@@ -27,7 +39,7 @@ def setup_logging():
     Setup a stream handler to stdout and a file handler
     to write to ./logs/logfile.log from the root logger for convenience
     """
-    settings = get_settings()
+    settings = get_core_settings()
     logger = logging.getLogger()
     logger.setLevel(settings.log_level.upper())
     stream_handler = logging.StreamHandler(stream=sys.stdout)
