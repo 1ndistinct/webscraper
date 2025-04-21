@@ -22,7 +22,7 @@ def homepage(request: Request):
     """
     Website homepage
     """
-    return templates.TemplateResponse("homepage.html", {"request": request})
+    return templates.TemplateResponse(request, "homepage.html")
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -32,7 +32,7 @@ def nextpage(request: Request):
     """
     Website other routes
     """
-    return templates.TemplateResponse("nextpage.html", {"request": request})
+    return templates.TemplateResponse(request, "nextpage.html")
 
 
 @app.get("/payments", response_class=HTMLResponse)
@@ -40,4 +40,4 @@ def finalpage(request: Request):
     """
     Website final page
     """
-    return templates.TemplateResponse("finalpage.html", {"request": request})
+    return templates.TemplateResponse(request, "finalpage.html")

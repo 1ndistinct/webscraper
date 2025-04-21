@@ -13,6 +13,7 @@ class Status(StrEnum):
     Scrape Status
     """
 
+    PENDING = "pending"
     IN_PROGRESS = "inprogress"
     FAILED = "failed"
     SUCCESS = "success"

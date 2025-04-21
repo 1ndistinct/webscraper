@@ -21,7 +21,7 @@ def get_httpx_client():
     return httpx.AsyncClient(
         follow_redirects=True,
         transport=httpx.AsyncHTTPTransport(
-            retries=settings.retries,
+            retries=settings.connection_retries,
             limits=httpx.Limits(
                 max_connections=settings.max_connections,
                 max_keepalive_connections=settings.max_keepalive_connections,

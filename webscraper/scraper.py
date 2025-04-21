@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from pydantic import HttpUrl, ValidationError
 import httpx
 
-from webscraper.settings import get_core_settings, get_http_client_settings
+from webscraper.settings import get_core_settings
 from .utils import get_httpx_client
 from .definitions import Status, ScrapeEventSettings
 from .datastore import Db, get_db
@@ -75,12 +75,11 @@ def validate_next_steps(settings: ScrapeEventSettings, url: str, depth: int):
         ## inefficient resetting of this key - extra unneccesary transaction but makes code cleaner
         return status
 
-    return Status.IN_PROGRESS
+    return Status.PENDING
 
 
 async def worker(
     queue: asyncio.Queue,
-    semaphore: asyncio.Semaphore,
     client: httpx.AsyncClient,
     settings: ScrapeEventSettings,
     shutdown_event: asyncio.Event,
@@ -88,6 +87,7 @@ async def worker(
     """
     Run workers to scrape links
     """
+    db = get_db()
     while not shutdown_event.is_set():
         try:
             url, depth = queue.get_nowait()  # syncronous operation
@@ -96,22 +96,18 @@ async def worker(
         ):  # allows sigterm and siging to shutdown worker when no messages are on queue
             await asyncio.sleep(1)  # prevents cpu hogging
             continue
-
-        db = get_db()
-        status = validate_next_steps(settings, url, depth)
-        db.set_url_status(settings.id_, url, status)
-        if status != Status.IN_PROGRESS:
-            queue.task_done()
-            continue
-
-        async with semaphore:
-            html = await _fetch_page(url, client, settings, db)
-        ## Defeats the purpose of using a generator
-        # but for the requirement of printing a LIST of url's visited, its what I have done
+        db.set_url_status(settings.id_, url, Status.IN_PROGRESS)
+        html = await _fetch_page(url, client, settings, db)
         links = []
         for extracted_url in _extract_links(html, url):
-            queue.put_nowait((extracted_url, depth + 1))
             links.append(extracted_url.encoded_string())
+            status = validate_next_steps(settings, extracted_url, depth)
+            db.set_url_status(settings.id_, extracted_url, status)
+            if status != Status.PENDING:
+                continue  # don't add to queue if already worked on or ignored
+
+            queue.put_nowait((extracted_url, depth + 1))
+
         logging.info("\033[1;32mvisited %s\033[0m", url.encoded_string())
         logging.info("\033[1;33mLinks found: %s\033[0m", links)
         queue.task_done()
@@ -124,25 +120,23 @@ async def begin(
     Begin function to create and pass in the httpx client
     """
     event_settings = get_db().add_scrape_event(uuid4(), base_url, max_depth)
-    client_settings = get_http_client_settings()
     core_settings = get_core_settings()
 
-    ## prevents pool timeout while waiting for a connection
-    semaphore = asyncio.Semaphore(client_settings.max_connections)
     queue: asyncio.Queue = asyncio.Queue()
-
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
     loop.add_signal_handler(signal.SIGTERM, shutdown_event.set)
     loop.add_signal_handler(signal.SIGINT, shutdown_event.set)
-
+    ## Do initial validation - have to duplicate this logic twice, but improves efficiency
+    status = validate_next_steps(event_settings, event_settings.base_url, 0)
+    get_db().set_url_status(event_settings.id_, event_settings.base_url, status)
+    ##
     queue.put_nowait((event_settings.base_url, 0))
+
     httpx_client = httpx_client or get_httpx_client()
     async with httpx_client as client:
         workers = [
-            asyncio.create_task(
-                worker(queue, semaphore, client, event_settings, shutdown_event)
-            )
+            asyncio.create_task(worker(queue, client, event_settings, shutdown_event))
             for _ in range(core_settings.num_workers)
         ]
         await queue.join()

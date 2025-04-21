@@ -11,7 +11,7 @@ class HttpClientSettings(BaseSettings):
     Http Client Settings
     """
 
-    retries: int = 3
+    connection_retries: int = 3
     pool_timeout: int = 60
     timeout: int = 15
     max_connections: int = 100
