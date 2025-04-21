@@ -22,10 +22,7 @@ async def client():
         try:
             yield cli
         finally:
-            try:
-                await cli.aclose()
-            except RuntimeError:
-                ...
+            await cli.aclose()
 
 
 @pytest_asyncio.fixture(autouse=True)

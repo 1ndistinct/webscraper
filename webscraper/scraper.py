@@ -94,7 +94,7 @@ async def worker(
         except (
             asyncio.QueueEmpty
         ):  # allows sigterm and siging to shutdown worker when no messages are on queue
-            await asyncio.sleep(1)
+            await asyncio.sleep(1)  # prevents cpu hogging
             continue
 
         db = get_db()
@@ -106,10 +106,14 @@ async def worker(
 
         async with semaphore:
             html = await _fetch_page(url, client, settings, db)
-
-        for url in _extract_links(html, url):
-            queue.put_nowait((url, depth + 1))
-
+        ## Defeats the purpose of using a generator
+        # but for the requirement of printing a LIST of url's visited, its what I have done
+        links = []
+        for extracted_url in _extract_links(html, url):
+            queue.put_nowait((extracted_url, depth + 1))
+            links.append(extracted_url.encoded_string())
+        logging.info("\033[1;32mvisited %s\033[0m", url.encoded_string())
+        logging.info("\033[1;33mLinks found: %s\033[0m", links)
         queue.task_done()
 
 

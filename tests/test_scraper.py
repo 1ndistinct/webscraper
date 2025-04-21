@@ -2,9 +2,13 @@
 Test Scraper functionality
 """
 
+import json
+import logging
+import os
 from uuid import uuid4
 from httpx import ASGITransport, AsyncClient
-from pydantic import HttpUrl
+import httpx
+from pydantic import HttpUrl, ValidationError
 import pytest
 from webscraper.datastore import get_db
 from webscraper.scraper import (
@@ -15,7 +19,76 @@ from webscraper.scraper import (
     validate_next_steps,
 )
 from webscraper.definitions import Status
+from webscraper.settings import get_core_settings, get_http_client_settings
+from webscraper.utils import get_httpx_client, setup_logging
+from webscraper.__main__ import scrape
 from .mocks.site import app
+
+
+def test_main_runs():
+    """
+    test that main runs and writes to file
+    """
+    results_filename = "results.json"
+    with pytest.raises(ValidationError):
+        scrape("ftp://test", results_filename=results_filename)
+    scrape("http://test")
+    assert os.path.exists(results_filename)
+    with open(results_filename, "r", encoding="utf-8") as f:
+        results = json.loads(f.read())
+
+    assert results == {
+        "counts": {
+            "inprogress": 0,
+            "failed": 1,
+            "success": 0,
+            "missing": 0,
+            "ignored": 0,
+        },
+        "total_count": 1,
+        "status": {
+            "inprogress": [],
+            "failed": ["http://test/"],
+            "success": [],
+            "missing": [],
+            "ignored": [],
+        },
+    }
+
+
+def test_root_logger_config():
+    """
+    Test root logger configuration
+    """
+    settings = get_core_settings()
+    settings.log_level = "DEBUG"
+    setup_logging()
+    root_logger = logging.getLogger()
+
+    assert root_logger.level == logging.DEBUG
+    types = [type(handler) for handler in root_logger.handlers]
+    assert logging.StreamHandler in types
+    assert logging.FileHandler in types
+
+
+def test_get_httpx_client():
+    """
+    test fetch httpx client with desired config
+    """
+    settings = get_http_client_settings()
+    client = get_httpx_client()
+    assert client.follow_redirects is True
+    assert client.timeout.pool == settings.pool_timeout
+    assert client.timeout.read == settings.timeout
+    assert client.timeout.write == settings.timeout
+    assert client.timeout.connect == settings.timeout
+    transport = client._transport
+    assert isinstance(transport, httpx.AsyncHTTPTransport)
+    assert transport._pool._retries == settings.retries
+    assert transport._pool._max_connections == settings.max_connections
+    assert (
+        transport._pool._max_keepalive_connections == settings.max_keepalive_connections
+    )
 
 
 @pytest.mark.asyncio

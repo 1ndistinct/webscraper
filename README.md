@@ -11,7 +11,7 @@ NOTE: If you are having issues, you may need to source the venv `source ./.venv/
 
 ## Testing
 
-To run tests, either use the vscode testing extension or run `make test`
+To run tests, either use the vscode testing extension or run `make test`. If you run make test, it will also show the test coverage.
 
 ## Running the App
 

@@ -23,3 +23,6 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "ruff>=0.11.3",
 ]
+
+[tool.coverage.run]
+source = ["webscraper"]

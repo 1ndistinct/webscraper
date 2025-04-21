@@ -16,6 +16,7 @@ push: build
 
 test:
 	coverage run -m pytest ./tests
+	coverage report -m
 
 run:
 	python -m webscraper https://monzo.com
