@@ -175,6 +175,7 @@ async def test_extract_urls(client: AsyncClient):
         "https://twitter.com/example",
         "https://facebook.com/example",
         "https://linkedin.com/company/example",
+        "http://abc.test/about",
         "http://test/about",
         "http://test/blog",
         "http://test/blog",
@@ -193,15 +194,16 @@ async def test_scrape():
     base_url = HttpUrl(str(client.base_url))
     id_ = await begin(base_url, 10, client)
     results = get_results(id_)
+    print(results)
     assert results == {
         "counts": {
             Status.IN_PROGRESS: 0,
             Status.FAILED: 1,
             Status.SUCCESS: 5,
             Status.MISSING: 0,
-            Status.IGNORED: 3,
+            Status.IGNORED: 4,
         },
-        "total_count": 9,
+        "total_count": 10,
         "status": {
             Status.IN_PROGRESS: [],
             Status.FAILED: ["http://test/search"],
@@ -217,6 +219,7 @@ async def test_scrape():
                 "https://twitter.com/example",
                 "https://facebook.com/example",
                 "https://linkedin.com/company/example",
+                "http://abc.test/about",
             ],
         },
     }
