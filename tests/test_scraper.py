@@ -153,7 +153,10 @@ async def test_validate_next_steps(client: AsyncClient):
 
     # test different host
     different_host_url = HttpUrl("https://google.com")
-    assert validate_next_steps(settings, different_host_url, 0) == Status.IGNORED
+    assert (
+        validate_next_steps(settings, different_host_url.encoded_string(), 0)
+        == Status.IGNORED
+    )
     # test max depth reached
     assert validate_next_steps(settings, working_url, 3) == Status.IGNORED
     # test url is invalid
