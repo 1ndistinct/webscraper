@@ -3,8 +3,8 @@ A mock site used to test web scraping
 """
 
 import pathlib
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Header, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 
@@ -41,3 +41,13 @@ def finalpage(request: Request):
     Website final page
     """
     return templates.TemplateResponse(request, "finalpage.html")
+
+
+@app.get("/rate", response_class=JSONResponse)
+def rate_limited(attempt: int = Header(None)):
+    """
+    Test retry logic
+    """
+    if attempt == 2:
+        return JSONResponse({"detail": "failed"}, 500)
+    return JSONResponse({"detail": "rate limitted"}, 429)

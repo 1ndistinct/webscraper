@@ -20,7 +20,7 @@ from webscraper.scraper import (
 )
 from webscraper.definitions import Status
 from webscraper.settings import get_core_settings, get_http_client_settings
-from webscraper.utils import get_httpx_client, setup_logging
+from webscraper.utils import get_httpx_client, setup_logging, RetryTransport
 from webscraper.__main__ import scrape
 from .mocks.site import app
 
@@ -61,6 +61,7 @@ def test_get_httpx_client():
     test fetch httpx client with desired config
     """
     settings = get_http_client_settings()
+
     client = get_httpx_client()
     assert client.follow_redirects is True
     assert client.timeout.pool == settings.pool_timeout
@@ -68,11 +69,18 @@ def test_get_httpx_client():
     assert client.timeout.write == settings.timeout
     assert client.timeout.connect == settings.timeout
     transport = client._transport
-    assert isinstance(transport, httpx.AsyncHTTPTransport)
-    assert transport._pool._retries == settings.connection_retries
-    assert transport._pool._max_connections == settings.max_connections
+    assert isinstance(transport, RetryTransport)
+
+    assert transport._backoff_factor == settings.backoff_factor
+    assert transport._status_retries == settings.status_retries
+
+    wrapped_transport = transport._transport
+    assert isinstance(wrapped_transport, httpx.AsyncHTTPTransport)
+    assert wrapped_transport._pool._retries == settings.connection_retries
+    assert wrapped_transport._pool._max_connections == settings.max_connections
     assert (
-        transport._pool._max_keepalive_connections == settings.max_keepalive_connections
+        wrapped_transport._pool._max_keepalive_connections
+        == settings.max_keepalive_connections
     )
 
 
@@ -172,6 +180,19 @@ async def test_extract_urls(client: AsyncClient):
         "http://test/contact",
         "http://test/search",
     ]
+
+
+@pytest.mark.asyncio
+async def test_retry_transport(client: AsyncClient):
+    """
+    Test retry_transport
+    """
+    client = AsyncClient(
+        transport=RetryTransport(ASGITransport(app=app), 5, 0.1), base_url="http://test"
+    )
+    resp = await client.get("/rate")  ## this endpoint only returns 200 after 3 attempts
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": "failed"}
 
 
 @pytest.mark.asyncio

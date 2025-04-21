@@ -34,6 +34,8 @@ async def setup_teardown():
     http_settings.pool_timeout = 0.5
     http_settings.timeout = 0.5  # adjust timeouts to test case where not working
     http_settings.connection_retries = 0
+    http_settings.backoff_factor = 1
+    http_settings.status_retries = 0
     yield
 
 

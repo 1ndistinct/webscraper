@@ -2,13 +2,58 @@
 helper functions and enums
 """
 
+import asyncio
 from functools import lru_cache
 import logging
 import os
+import random
 import sys
 
 import httpx
 from .settings import get_http_client_settings, get_core_settings
+
+
+class RetryTransport(httpx.AsyncBaseTransport):
+    """
+    Retry transport that uses the async http transport under the hood
+    """
+
+    def __init__(
+        self,
+        async_transport: httpx.AsyncBaseTransport,
+        status_retries: int = 3,
+        backoff_factor: float = 0.5,
+    ):
+        self._status_retries = status_retries
+        self._backoff_factor = backoff_factor
+        self._retry_statuses = (429,)
+        self._transport = async_transport
+
+    def _get_delay(self, response: httpx.Response, attempt: int):
+        """
+        Get delay either from header passed back from server or use internal exponential backoff
+        """
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            return int(retry_after)
+        jitter = random.uniform(0, 2)
+        return jitter + self._backoff_factor * pow(2, attempt)  # exponential backoff
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """
+        Try this request, and retry up to x times if getting rate limited
+        """
+        for attempt in range(self._status_retries):
+            request.headers.update({"Attempt": str(attempt)})
+            response = await self._transport.handle_async_request(request)
+            if response.status_code not in self._retry_statuses:
+                return response
+
+            await response.aread()  # reads body and closes stream
+            delay = self._get_delay(response, attempt)
+            await asyncio.sleep(delay)
+
+        return response
 
 
 @lru_cache
@@ -20,12 +65,18 @@ def get_httpx_client():
     settings = get_http_client_settings()
     return httpx.AsyncClient(
         follow_redirects=True,
-        transport=httpx.AsyncHTTPTransport(
-            retries=settings.connection_retries,
-            limits=httpx.Limits(
-                max_connections=settings.max_connections,
-                max_keepalive_connections=settings.max_keepalive_connections,
+        transport=RetryTransport(
+            async_transport=httpx.AsyncHTTPTransport(
+                # this only retries on connection failures, not on bad status codes
+                retries=settings.connection_retries,
+                limits=httpx.Limits(
+                    max_connections=settings.max_connections,
+                    max_keepalive_connections=settings.max_keepalive_connections,
+                ),
             ),
+            # retries on bad status codes
+            status_retries=settings.status_retries,
+            backoff_factor=settings.backoff_factor,
         ),
         timeout=httpx.Timeout(
             pool=settings.pool_timeout,
