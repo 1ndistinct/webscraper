@@ -9,7 +9,7 @@ repos:
       
       - id: mypy
         name: mypy (via local venv)
-        entry: uv run mypy
+        entry: uv run mypy --check-untyped-defs
         language: system
         files: \.py$
         exclude: ^tests/
