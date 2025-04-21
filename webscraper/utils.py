@@ -31,16 +31,6 @@ class RetryTransport(httpx.AsyncBaseTransport):
         self._transport = async_transport
         self._jitter = jitter_range
 
-    def _get_delay(self, response: httpx.Response, attempt: int):
-        """
-        Get delay either from header passed back from server or use internal exponential backoff
-        """
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            return int(retry_after)
-        jitter = random.uniform(0, self._jitter)
-        return jitter + self._backoff_factor * pow(2, attempt)  # exponential backoff
-
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         """
         Try this request, and retry up to x times if getting rate limited
@@ -52,7 +42,9 @@ class RetryTransport(httpx.AsyncBaseTransport):
                 return response
 
             await response.aread()  # reads body and closes stream
-            delay = self._get_delay(response, attempt)
+            delay = random.uniform(0, self._jitter) + self._backoff_factor * pow(
+                2, attempt
+            )  # exponential backoff
             await asyncio.sleep(delay)
 
         return response
