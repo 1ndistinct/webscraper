@@ -91,9 +91,12 @@ async def worker(
     while not shutdown_event.is_set():
         try:
             url, depth = queue.get_nowait()  # syncronous operation
-        except asyncio.QueueEmpty:
+        except (
+            asyncio.QueueEmpty
+        ):  # allows sigterm and siging to shutdown worker when no messages are on queue
             await asyncio.sleep(1)
             continue
+
         db = get_db()
         status = validate_next_steps(settings, url, depth)
         db.set_url_status(settings.id_, url, status)
@@ -110,7 +113,9 @@ async def worker(
         queue.task_done()
 
 
-async def begin(base_url: HttpUrl, max_depth: int):
+async def begin(
+    base_url: HttpUrl, max_depth: int, httpx_client: httpx.AsyncClient | None = None
+):
     """
     Begin function to create and pass in the httpx client
     """
@@ -128,7 +133,8 @@ async def begin(base_url: HttpUrl, max_depth: int):
     loop.add_signal_handler(signal.SIGINT, shutdown_event.set)
 
     queue.put_nowait((event_settings.base_url, 0))
-    async with get_httpx_client() as client:
+    httpx_client = httpx_client or get_httpx_client()
+    async with httpx_client as client:
         workers = [
             asyncio.create_task(
                 worker(queue, semaphore, client, event_settings, shutdown_event)

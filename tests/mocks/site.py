@@ -2,7 +2,10 @@
 A mock site used to test web scraping
 """
 
-from fastapi import FastAPI
+import pathlib
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 
 app = FastAPI(
@@ -10,19 +13,31 @@ app = FastAPI(
     description="Mock website for webscraper testing",
     version="1.0",
 )
+current_dir = pathlib.Path(__file__).parent
+templates = Jinja2Templates(directory=f"{current_dir}/templates")
 
 
-@app.get("/")
-def homepage():
+@app.get("/", response_class=HTMLResponse)
+def homepage(request: Request):
     """
     Website homepage
     """
-    return {"success": "home"}
+    return templates.TemplateResponse("homepage.html", {"request": request})
 
 
-@app.get("/next")
-def nextpage():
+@app.get("/about", response_class=HTMLResponse)
+@app.get("/blog", response_class=HTMLResponse)
+@app.get("/contact", response_class=HTMLResponse)
+def nextpage(request: Request):
     """
-    Website nextpage
+    Website other routes
     """
-    return {"success": "next"}
+    return templates.TemplateResponse("nextpage.html", {"request": request})
+
+
+@app.get("/payments", response_class=HTMLResponse)
+def finalpage(request: Request):
+    """
+    Website final page
+    """
+    return templates.TemplateResponse("finalpage.html", {"request": request})

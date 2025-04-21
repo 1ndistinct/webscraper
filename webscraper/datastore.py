@@ -46,12 +46,20 @@ class Db:
         get high level stats of scrape event
         """
         event = self.db[id_]  # expected key error if scrape event doesn't exist
-        outcome: dict[Status, list[str]] = {status: [] for status in Status}
+        statuses: dict[Status, list[str]] = {status: [] for status in Status}
+        counts: dict[Status, int] = {status: 0 for status in Status}
+        outcome: dict = {}
+        total = 0
         for url, status in event.status.items():
             if (
-                url not in outcome[status]
+                url not in statuses[status]
             ):  # using a list instead of a set so its json serializable
-                outcome[status].append(url.encoded_string())
+                statuses[status].append(url.encoded_string())
+                counts[status] += 1
+                total += 1
+        outcome["counts"] = counts
+        outcome["total_count"] = total
+        outcome["status"] = statuses
         return outcome
 
 
