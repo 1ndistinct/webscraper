@@ -30,9 +30,13 @@ def test_main_runs():
     test that main runs and writes to file
     """
     results_filename = "results.json"
+    get_http_client_settings().status_retries = 0
+
     with pytest.raises(ValidationError):
         scrape("ftp://test", results_filename=results_filename)
+
     scrape("http://test")
+
     assert os.path.exists(results_filename)
     with open(results_filename, "r", encoding="utf-8") as f:
         results = json.loads(f.read())
@@ -70,7 +74,7 @@ def test_get_httpx_client():
     assert client.timeout.connect == settings.timeout
     transport = client._transport
     assert isinstance(transport, RetryTransport)
-
+    assert transport._jitter == settings.jitter_range
     assert transport._backoff_factor == settings.backoff_factor
     assert transport._status_retries == settings.status_retries
 

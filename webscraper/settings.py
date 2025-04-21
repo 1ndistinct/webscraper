@@ -13,6 +13,7 @@ class HttpClientSettings(BaseSettings):
 
     connection_retries: int = 3
     status_retries: int = 3
+    jitter_range: float = 1
     backoff_factor: float = 0.5
     pool_timeout: int = 60
     timeout: int = 15

@@ -23,11 +23,13 @@ class RetryTransport(httpx.AsyncBaseTransport):
         async_transport: httpx.AsyncBaseTransport,
         status_retries: int = 3,
         backoff_factor: float = 0.5,
+        jitter_range: float = 1,
     ):
         self._status_retries = status_retries
         self._backoff_factor = backoff_factor
         self._retry_statuses = (429,)
         self._transport = async_transport
+        self._jitter = jitter_range
 
     def _get_delay(self, response: httpx.Response, attempt: int):
         """
@@ -36,14 +38,14 @@ class RetryTransport(httpx.AsyncBaseTransport):
         retry_after = response.headers.get("Retry-After")
         if retry_after:
             return int(retry_after)
-        jitter = random.uniform(0, 2)
+        jitter = random.uniform(0, self._jitter)
         return jitter + self._backoff_factor * pow(2, attempt)  # exponential backoff
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         """
         Try this request, and retry up to x times if getting rate limited
         """
-        for attempt in range(self._status_retries):
+        for attempt in range(self._status_retries + 1):  # retries plus first attempt
             request.headers.update({"Attempt": str(attempt)})
             response = await self._transport.handle_async_request(request)
             if response.status_code not in self._retry_statuses:
@@ -77,6 +79,7 @@ def get_httpx_client():
             # retries on bad status codes
             status_retries=settings.status_retries,
             backoff_factor=settings.backoff_factor,
+            jitter_range=settings.jitter_range,
         ),
         timeout=httpx.Timeout(
             pool=settings.pool_timeout,
